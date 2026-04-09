@@ -276,7 +276,7 @@ def main():
 
             elif choice == "7":
                 filepath = input("Enter log file path: ").strip()
-                import_logs(filepath, conn, cursor)
+                import_logs(filepath, conn, cursor, get_last_hash, hash_function)
 
             elif choice == "8":
                 print("\n Goodbye!\n")

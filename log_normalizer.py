@@ -8,8 +8,6 @@ import re                           # For extraction of text from different logs
 
 from datetime import datetime       # For extracting date and time
 
-from tamper_evident import hash_function, get_last_hash         # to use hash_function and get_last_hash functions
-
 # recompiler
 
 # in these compilers we are going to extract the text from different logs.
@@ -124,7 +122,7 @@ def normalize(parsed):
 
 # Importing logs function to import logs from the file to normalize and add to the system
 
-def import_logs(filepath, conn, cursor):
+def import_logs(filepath, conn, cursor, get_last_hash, hash_function):
 
     # Opening the log file to import the logs
 
