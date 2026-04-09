@@ -28,21 +28,29 @@ ssh_auth = re.compile(
 # Windows even logs recomiler
 
 windows_event = re.compile(
-    r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+' 
-    r'(\w+)\s+'                                        
-    r'(\d+)\s+'                                        
-    r'(.*)'                                            
+    r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}),\s+'  
+    r'(\w+)\s+'                                          
+    r'(\w+)\s+'                                          
+    r'(.*)'                                              
 )
 
-# Apache logs recompiler
+# Apache  Access logs recompiler
 
-apache_logs = re.compile(
+apache_access = re.compile(
     r'(\S+)\s+'                          
     r'\S+\s+'                            
     r'(\S+)\s+'                          
     r'\[(.+?)\]\s+'                     
     r'"(\S+)\s+(\S+)\s+\S+"\s+'         
     r'(\d+)'                             
+)
+
+# Apache Error logs recompiler
+
+apache_error = re.compile(
+    r'\[(\w{3}\s+\w{3}\s+\d+\s+\d+:\d+:\d+\s+\d{4})\]\s+'
+    r'\[(\w+)\]\s+'
+    r'(.*)'
 )
 
 # Linux systems log recompiler
@@ -52,6 +60,15 @@ linux_syslog = re.compile(
     r'\S+\s+'                            
     r'(\S+):\s+'                         
     r'(.*)'                              
+)
+
+# MacOS syslog recompiler
+
+macos_log = re.compile(
+    r'(\w{3}\s+\d+\s+\d+:\d+:\d+)\s+'   
+    r'\S+\s+'                             
+    r'(\S+):\s+'                          
+    r'(.*)'                               
 )
 
 
@@ -84,16 +101,18 @@ def parse_log(raw_line):
     match = windows_event.search(raw_line)
 
     if match:
-        event_id = match.group(3)           
-        
-        if event_id == '4624':
-            event_type = 'LOGIN_SUCCESS'
-        elif event_id == '4625':
-            event_type = 'LOGIN_FAILED'
-        else:
-            event_type = f'WINDOWS_EVENT_{event_id}'
+        level = match.group(2)
+        service = match.group(3)
+        message = match.group(4).strip()
 
-        description = f"{match.group(2)} EventID:{event_id} — {match.group(4).strip()}"
+        if level.lower() == 'error':
+            event_type = 'WINDOWS_ERROR'
+        elif level.lower() == 'warning':
+            event_type = 'WINDOWS_WARNING'
+        else:
+            event_type = 'WINDOWS_INFO'
+
+        description = f"{service} [{level}]: {message[:150]}"
 
         return {
             "timestamp":   match.group(1),
@@ -102,9 +121,9 @@ def parse_log(raw_line):
         }
 
 
-    # Apache Log
+    # Apache Access Log
 
-    match = apache_logs.search(raw_line)
+    match = apache_access.search(raw_line)
 
     if match:
         if match.group(6) == '200':
@@ -121,9 +140,31 @@ def parse_log(raw_line):
         }
 
 
+    # Apache Error Log
+
+    match = apache_error.search(raw_line)
+
+    if match:
+        level = match.group(2)
+        message = match.group(3).strip()
+
+        if level.lower() == 'error':
+            event_type = 'APACHE_ERROR'
+        else:
+            event_type = 'APACHE_NOTICE'
+
+        description = f"[{level}] {message[:150]}"
+
+        return {
+            "timestamp":   match.group(1),
+            "event_type":  event_type,
+            "description": description
+        }
+
+
     # Linux Syslog parser
 
-    
+
     match = linux_syslog.search(raw_line)
 
     if match:
@@ -131,6 +172,30 @@ def parse_log(raw_line):
         message = match.group(3)
         event_type = "SUDO" if "sudo" in service.lower() else "SYSTEM_EVENT"
         description = f"{service}: {message.strip()}"
+        return {
+            "timestamp":   match.group(1),
+            "event_type":  event_type,
+            "description": description
+        }
+
+
+    # macOS Log
+
+    match = macos_log.search(raw_line)
+
+    if match:
+        process = match.group(2)
+        message = match.group(3).strip()
+
+        if 'kernel' in process.lower():
+            event_type = 'MACOS_KERNEL'
+        elif 'sudo' in process.lower():
+            event_type = 'MACOS_SUDO'
+        else:
+            event_type = 'MACOS_SYSTEM'
+
+        description = f"{process}: {message[:150]}"
+
         return {
             "timestamp":   match.group(1),
             "event_type":  event_type,
@@ -198,9 +263,3 @@ def import_logs(filepath, conn, cursor, get_last_hash, hash_function):
 
         else:
             print(f"[!] Skipped — format not recognized: {line[:50]}")
-
-
-
-
-
-
