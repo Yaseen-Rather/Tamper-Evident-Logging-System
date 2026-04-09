@@ -15,7 +15,9 @@ from datetime import datetime       # For extracting date and time
 # ssh session logs recompiler
 
 ssh_auth = re.compile(
-    r'(\d+-\d+-\d+\s+\d+:\d+:\d+)\s+'
+    r'(\w{3}\s+\d+\s+\d+:\d+:\d+)\s+'
+    r'\S+\s+'
+    r'\S+:\s+'
     r'(Failed|Accepted)\s+'
     r'password for\s+'
     r'(\S+)\s+'
@@ -26,20 +28,30 @@ ssh_auth = re.compile(
 # Windows even logs recomiler
 
 windows_event = re.compile(
-    r'(\d+-\d+-\d+\s+\d+:\d+:\d+)\s+'
-    r'(\w+)\s+'
-    r'(AUDIT_SUCCESS|AUDIT_FAILURE)\s+'
-    r'(.*)'
+    r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+' 
+    r'(\w+)\s+'                                        
+    r'(\d+)\s+'                                        
+    r'(.*)'                                            
 )
 
 # Apache logs recompiler
 
 apache_logs = re.compile(
-    r'(\S+)\s+-\s+'
-    r'(\w+)\s+'
-    r'\[(.+?)\]\s+'
-    r'"(\S+)\s+(\S+)\s+\S+"\s+'
-    r'(\d+)'
+    r'(\S+)\s+'                          
+    r'\S+\s+'                            
+    r'(\S+)\s+'                          
+    r'\[(.+?)\]\s+'                     
+    r'"(\S+)\s+(\S+)\s+\S+"\s+'         
+    r'(\d+)'                             
+)
+
+# Linux systems log recompiler
+
+linux_syslog = re.compile(
+    r'(\w{3}\s+\d+\s+\d+:\d+:\d+)\s+'
+    r'\S+\s+'                            
+    r'(\S+):\s+'                         
+    r'(.*)'                              
 )
 
 
@@ -53,10 +65,10 @@ def parse_log(raw_line):
 
     if match:
         if match.group(2) == 'Failed':
-            event_type = 'Failed'
+            event_type = 'FAILED_LOGIN'
 
         else:
-            event_type = 'Accepted'
+            event_type = 'LOGIN'
 
         description = f"{match.group(2)} password for '{match.group(3)}' from {match.group(4)}"
             
@@ -72,19 +84,23 @@ def parse_log(raw_line):
     match = windows_event.search(raw_line)
 
     if match:
-        if match.group(3) == 'AUDIT_FAILURE':
-            event_type = 'AUDIT_FAILURE'
+        event_id = match.group(3)           
         
+        if event_id == '4624':
+            event_type = 'LOGIN_SUCCESS'
+        elif event_id == '4625':
+            event_type = 'LOGIN_FAILED'
         else:
-            event_type = 'AUDIT_SUCCESS'
+            event_type = f'WINDOWS_EVENT_{event_id}'
 
-        description = f" {match.group(2)} - {match.group(4)}"
+        description = f"{match.group(2)} EventID:{event_id} — {match.group(4).strip()}"
 
-        return{
-            "timestamp":    match.group(1),
-            "event_type":   event_type,
-            "description":  description
+        return {
+            "timestamp":   match.group(1),
+            "event_type":  event_type,
+            "description": description
         }
+
 
     # Apache Log
 
@@ -102,6 +118,23 @@ def parse_log(raw_line):
             "timestamp":    match.group(3),
             "event_type":   event_type,
             "description":  description
+        }
+
+
+    # Linux Syslog parser
+
+    
+    match = linux_syslog.search(raw_line)
+
+    if match:
+        service = match.group(2)
+        message = match.group(3)
+        event_type = "SUDO" if "sudo" in service.lower() else "SYSTEM_EVENT"
+        description = f"{service}: {message.strip()}"
+        return {
+            "timestamp":   match.group(1),
+            "event_type":  event_type,
+            "description": description
         }
 
 
