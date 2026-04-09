@@ -25,10 +25,13 @@ The system also includes a log normalization module that reads real world log fi
 ## Requirements
 
 ```
-pip install hashlib
+hashlib
+sqlite
+datetime
+re
 ```
 
-`hashlib` and `sqlite3` are both Python standard library — no external installs needed.
+All these are standard python libraries.
 
 ## How to run
 
@@ -50,6 +53,10 @@ python temper_evident.py
 ```
 
 ## How to import real world logs
+
+There are logs present in the Logs folder with 2000 entries in each file.
+
+if you want to increase the log size
 
 Put your log files in a `logs/` folder in the same directory, then run the program and pick option 7:
 
@@ -91,7 +98,7 @@ Tamper-Evident-Logging-System/
 
 This started as a straightforward hashing project and grew into a full log pipeline. I learned how SHA-256 chaining actually works from scratch, how SQLite handles structured security data, how real world log formats differ across operating systems, and how regex is used to parse and normalize unstructured text data.
 
-The normalization module was the biggest challenge — every OS writes logs differently and building a parser for each format taught me a lot about how real SIEM tools work under the hood.
+The normalization module was the biggest challenge as every OS writes logs differently and building a parser for each format taught me a lot about how real SIEM tools work under the hood.
 
 ## Sources
 
